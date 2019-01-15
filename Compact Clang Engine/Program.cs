@@ -138,16 +138,15 @@ namespace IngameScript
                         }
                         impulseDriver.Attach();
                     }
-                    foreach (IMyInventory ContainerEnd in impulseEngine.ContainerEnds)
-                    {
+
+                    if (step == 0)
                         foreach (IMyInventory ContainerBase in impulseEngine.ContainerBases)
-                        {
-                            if (step == 0)
+                            foreach (IMyInventory ContainerEnd in impulseEngine.ContainerEnds)
                                 ContainerBase.TransferItemFrom(ContainerEnd, 0, 0, true, ballastMass / (impulseEngine.ContainerBases.Count * impulseEngine.ContainerEnds.Count));
-                            else
+                    else
+                        foreach (IMyInventory ContainerEnd in impulseEngine.ContainerEnds)
+                            foreach (IMyInventory ContainerBase in impulseEngine.ContainerBases)
                                 ContainerEnd.TransferItemFrom(ContainerBase, 0, 0, true, ballastMass / (impulseEngine.ContainerBases.Count * impulseEngine.ContainerEnds.Count));
-                        }
-                    }
                 }
                 catch
                 {
