@@ -44,14 +44,16 @@ namespace IngameScript
                 case "TOGGLE":
                     impulseEnginesActive = !impulseEnginesActive;
                     break;
+
+                default:
+                    break;
             }
             if (doRunRefresh)
             {
                 RefreshBlocks();
                 doRunRefresh = false;
             }
-            float massShip = mainControl.CalculateShipMass().PhysicalMass;
-
+            
             //Control input vector relative to grid
             Vector3D pilotInputLocal = mainControl.MoveIndicator;
             //Normalized control input vector relative to world
@@ -139,10 +141,12 @@ namespace IngameScript
 
                     if (step == 0)
                         foreach (IMyInventory ContainerEnd in impulseEngine.ContainerEnds)
-                            impulseEngine.ContainerBase.TransferItemFrom(ContainerEnd, 0, 0);
+                            foreach (IMyInventory ContainerBase in impulseEngine.ContainerBases)
+                                ContainerBase.TransferItemFrom(ContainerEnd, 0, 0, true, ballastMass / (impulseEngine.ContainerBases.Count * impulseEngine.ContainerEnds.Count));
                     else
                         foreach (IMyInventory ContainerEnd in impulseEngine.ContainerEnds)
-                            ContainerEnd.TransferItemFrom(impulseEngine.ContainerBase, 0, 0, true, ballastMass / impulseEngine.ContainerEnds.Count);
+                            foreach (IMyInventory ContainerBase in impulseEngine.ContainerBases)
+                                ContainerEnd.TransferItemFrom(ContainerBase, 0, 0, true, ballastMass / (impulseEngine.ContainerBases.Count * impulseEngine.ContainerEnds.Count));
                 }
                 catch
                 {
@@ -168,7 +172,7 @@ namespace IngameScript
             public List<IMyMotorAdvancedStator> ImpulseDrivers { get; set; } = new List<IMyMotorAdvancedStator>();
             public List<IMyCargoContainer> ContainerTempList { get; set; } = new List<IMyCargoContainer>();
             public List<IMyInventory> ContainerEnds { get; set; } = new List<IMyInventory>();
-            public IMyInventory ContainerBase { get; set; }
+            public List<IMyInventory> ContainerBases { get; set; } = new List<IMyInventory>();
 
             public ImpulseEngine(IMyBlockGroup impulseEngine)
             {
@@ -180,12 +184,13 @@ namespace IngameScript
             {
                 ImpulseEngineRaw.GetBlocksOfType(ImpulseDrivers);
 
-                ImpulseEngineRaw.GetBlocksOfType(ContainerTempList, BaseImpulseContainer => BaseImpulseContainer.CustomName.Contains("End"));
-                foreach (IMyCargoContainer ContainerTemp in ContainerTempList)
-                    ContainerEnds.Add(ContainerTemp.GetInventory());
+                ImpulseEngineRaw.GetBlocksOfType(ContainerTempList, ImpulseContainer => ImpulseContainer.CustomName.Contains("End"));
+                foreach (IMyCargoContainer ContainerTempEnd in ContainerTempList)
+                    ContainerEnds.Add(ContainerTempEnd.GetInventory());
 
-                ImpulseEngineRaw.GetBlocksOfType(ContainerTempList, BaseImpulseContainer => BaseImpulseContainer.CustomName.Contains("Base"));
-                ContainerBase = ContainerTempList[0].GetInventory();
+                ImpulseEngineRaw.GetBlocksOfType(ContainerTempList, ImpulseContainer => ImpulseContainer.CustomName.Contains("Base"));
+                foreach (IMyCargoContainer ContainerTempBase in ContainerTempList)
+                    ContainerEnds.Add(ContainerTempBase.GetInventory());
             }
 
             public void ExecuteDriver(IMyMotorAdvancedStator impulseDriver, float RotorDisplacement)
