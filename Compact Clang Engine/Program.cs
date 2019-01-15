@@ -53,7 +53,7 @@ namespace IngameScript
                 RefreshBlocks();
                 doRunRefresh = false;
             }
-            
+
             //Control input vector relative to grid
             Vector3D pilotInputLocal = mainControl.MoveIndicator;
             //Normalized control input vector relative to world
@@ -138,15 +138,16 @@ namespace IngameScript
                         }
                         impulseDriver.Attach();
                     }
-
-                    if (step == 0)
-                        foreach (IMyInventory ContainerEnd in impulseEngine.ContainerEnds)
-                            foreach (IMyInventory ContainerBase in impulseEngine.ContainerBases)
+                    foreach (IMyInventory ContainerEnd in impulseEngine.ContainerEnds)
+                    {
+                        foreach (IMyInventory ContainerBase in impulseEngine.ContainerBases)
+                        {
+                            if (step == 0)
                                 ContainerBase.TransferItemFrom(ContainerEnd, 0, 0, true, ballastMass / (impulseEngine.ContainerBases.Count * impulseEngine.ContainerEnds.Count));
-                    else
-                        foreach (IMyInventory ContainerEnd in impulseEngine.ContainerEnds)
-                            foreach (IMyInventory ContainerBase in impulseEngine.ContainerBases)
+                            else
                                 ContainerEnd.TransferItemFrom(ContainerBase, 0, 0, true, ballastMass / (impulseEngine.ContainerBases.Count * impulseEngine.ContainerEnds.Count));
+                        }
+                    }
                 }
                 catch
                 {
@@ -190,7 +191,7 @@ namespace IngameScript
 
                 ImpulseEngineRaw.GetBlocksOfType(ContainerTempList, ImpulseContainer => ImpulseContainer.CustomName.Contains("Base"));
                 foreach (IMyCargoContainer ContainerTempBase in ContainerTempList)
-                    ContainerEnds.Add(ContainerTempBase.GetInventory());
+                    ContainerBases.Add(ContainerTempBase.GetInventory());
             }
 
             public void ExecuteDriver(IMyMotorAdvancedStator impulseDriver, float RotorDisplacement)
