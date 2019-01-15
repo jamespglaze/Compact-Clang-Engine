@@ -19,8 +19,9 @@ namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
-        static string impulseEngineTag = "Impulse Engine";
-        static float restDisplacement = -0.2f;
+        static readonly string impulseEngineTag = "Impulse Engine";
+        static readonly float restDisplacement = -0.2f;
+
         static float maxDisplacement = -0.2f;
         static int step = 0;
         static bool doRunRefresh = true;
@@ -94,9 +95,6 @@ namespace IngameScript
             {
                 try
                 {
-
-                    int ballastMass = 123030;
-
                     foreach (IMyMotorAdvancedStator impulseDriver in impulseEngine.ImpulseDrivers)
                     {
                         //Which direction is this driver pointing relative to the world?
@@ -107,46 +105,38 @@ namespace IngameScript
 
                         //Is this driver going to help accelerate in the intended direction?
                         if (impulseEngineDotPilotInput > 0.05)
-                        {
                             impulseEngine.ExecuteDriver(impulseDriver, -maxDisplacement);
-                        }
+
                         else if (-impulseEngineDotPilotInput > 0.05)
-                        {
                             impulseEngine.ExecuteDriver(impulseDriver, maxDisplacement);
-                        }
+
                         else
                         {
                             //Is this driver going to help dampers stop?
                             if (-impulseEngineDotPilotInput == 0 && -impulseEngineDotShipVelocityScaled > 0.01)
                             {
-                                rotorDisplacement = -maxDisplacement;
                                 if (-impulseEngineDotShipVelocityScaled < 15)
                                     rotorDisplacement = (float)(-maxDisplacement * (-impulseEngineDotShipVelocityScaled / 15));
+                                else
+                                    rotorDisplacement = -maxDisplacement;
 
                                 impulseEngine.ExecuteDriver(impulseDriver, rotorDisplacement);
                             }
                             else if (impulseEngineDotPilotInput == 0 && impulseEngineDotShipVelocityScaled > 0.01)
                             {
-                                rotorDisplacement = maxDisplacement;
                                 if (impulseEngineDotShipVelocityScaled < 15)
                                     rotorDisplacement = (float)(maxDisplacement * impulseEngineDotShipVelocityScaled / 15);
+                                else
+                                    rotorDisplacement = maxDisplacement;
 
                                 impulseEngine.ExecuteDriver(impulseDriver, rotorDisplacement);
                             }
                             else
                                 impulseEngine.ResetDriver(impulseDriver);
                         }
+                        impulseEngine.ExecuteCargoShift();
                         impulseDriver.Attach();
                     }
-
-                    if (step == 0)
-                        foreach (IMyInventory ContainerBase in impulseEngine.ContainerBases)
-                            foreach (IMyInventory ContainerEnd in impulseEngine.ContainerEnds)
-                                ContainerBase.TransferItemFrom(ContainerEnd, 0, 0, true, ballastMass / (impulseEngine.ContainerBases.Count * impulseEngine.ContainerEnds.Count));
-                    else
-                        foreach (IMyInventory ContainerEnd in impulseEngine.ContainerEnds)
-                            foreach (IMyInventory ContainerBase in impulseEngine.ContainerBases)
-                                ContainerEnd.TransferItemFrom(ContainerBase, 0, 0, true, ballastMass / (impulseEngine.ContainerBases.Count * impulseEngine.ContainerEnds.Count));
                 }
                 catch
                 {
@@ -191,6 +181,19 @@ namespace IngameScript
                 ImpulseEngineRaw.GetBlocksOfType(ContainerTempList, ImpulseContainer => ImpulseContainer.CustomName.Contains("Base"));
                 foreach (IMyCargoContainer ContainerTempBase in ContainerTempList)
                     ContainerBases.Add(ContainerTempBase.GetInventory());
+            }
+            
+            public void ExecuteCargoShift()
+            {
+                int ballastMass = 123030;
+                if (step == 0)
+                    foreach (IMyInventory ContainerBase in ContainerBases)
+                        foreach (IMyInventory ContainerEnd in ContainerEnds)
+                            ContainerBase.TransferItemFrom(ContainerEnd, 0, 0, true, ballastMass / (ContainerBases.Count * ContainerEnds.Count));
+                else
+                    foreach (IMyInventory ContainerEnd in ContainerEnds)
+                        foreach (IMyInventory ContainerBase in ContainerBases)
+                            ContainerEnd.TransferItemFrom(ContainerBase, 0, 0, true, ballastMass / (ContainerBases.Count * ContainerEnds.Count));
             }
 
             public void ExecuteDriver(IMyMotorAdvancedStator impulseDriver, float RotorDisplacement)
