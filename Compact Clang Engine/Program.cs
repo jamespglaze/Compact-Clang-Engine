@@ -134,9 +134,9 @@ namespace IngameScript
                             else
                                 impulseEngine.ResetDriver(impulseDriver);
                         }
-                        impulseEngine.ExecuteCargoShift();
                         impulseDriver.Attach();
                     }
+                    impulseEngine.ExecuteCargoShift();
                 }
                 catch
                 {
