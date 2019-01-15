@@ -166,7 +166,6 @@ namespace IngameScript
         {
             public IMyBlockGroup ImpulseEngineRaw { get; set; }
             public List<IMyMotorAdvancedStator> ImpulseDrivers { get; set; } = new List<IMyMotorAdvancedStator>();
-            //public List<ImpulseDriver> ImpulseDrivers { get; set; } = new List<ImpulseDriver>();
             public List<IMyCargoContainer> ContainerTempList { get; set; } = new List<IMyCargoContainer>();
             public List<IMyInventory> ContainerEnds { get; set; } = new List<IMyInventory>();
             public IMyInventory ContainerBase { get; set; }
@@ -180,8 +179,6 @@ namespace IngameScript
             public void PopulateEngine()
             {
                 ImpulseEngineRaw.GetBlocksOfType(ImpulseDrivers);
-                //foreach (IMyMotorAdvancedStator impulseDriverRaw in ImpulseDriversRaw)
-                //    ImpulseDrivers.Add(new ImpulseDriver(impulseDriverRaw));
 
                 ImpulseEngineRaw.GetBlocksOfType(ContainerTempList, BaseImpulseContainer => BaseImpulseContainer.CustomName.Contains("End"));
                 foreach (IMyCargoContainer ContainerTemp in ContainerTempList)
