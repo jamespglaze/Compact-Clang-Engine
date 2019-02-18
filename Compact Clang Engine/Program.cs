@@ -19,19 +19,19 @@ namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
-        static readonly string impulseEngineTag = "Impulse Engine";
+        static readonly string engineTag = "Impulse Engine";
         static readonly float restDisplacement = -0.2f;
 
         static float maxDisplacement = -0.2f;
         static int step = 0;
         static bool doRunRefresh = true;
-        bool impulseEnginesActive = true;
+        bool enginesActive = true;
 
         IMyShipController mainControl = null;
         List<IMyShipController> controllers = new List<IMyShipController>();
 
-        List<IMyBlockGroup> impulseEnginesRaw = new List<IMyBlockGroup>();
-        List<ImpulseEngine> impulseEngines = new List<ImpulseEngine>();
+        List<IMyBlockGroup> enginesRaw = new List<IMyBlockGroup>();
+        List<Engine> engines = new List<Engine>();
 
         Program()
         {
@@ -43,7 +43,7 @@ namespace IngameScript
             switch (argument.ToUpper())
             {
                 case "TOGGLE":
-                    impulseEnginesActive = !impulseEnginesActive;
+                    enginesActive = !enginesActive;
                     break;
 
                 default:
@@ -56,18 +56,18 @@ namespace IngameScript
             }
 
             //Control input vector relative to grid
-            Vector3D pilotInputLocal = mainControl.MoveIndicator;
+            Vector3D inputLocal = mainControl.MoveIndicator;
             //Normalized control input vector relative to world
-            Vector3D pilotInputWorld = mainControl.WorldMatrix.Backward * pilotInputLocal.Z + mainControl.WorldMatrix.Right * pilotInputLocal.X + mainControl.WorldMatrix.Up * pilotInputLocal.Y;
-            if (pilotInputWorld.LengthSquared() > 0)
-                pilotInputWorld = Vector3D.Normalize(pilotInputWorld);
+            Vector3D inputWorld = mainControl.WorldMatrix.Backward * inputLocal.Z + mainControl.WorldMatrix.Right * inputLocal.X + mainControl.WorldMatrix.Up * inputLocal.Y;
+            if (inputWorld.LengthSquared() > 0)
+                inputWorld = Vector3D.Normalize(inputWorld);
             //Ships normalized velocity vector relative to world
             Vector3D shipVelocity = mainControl.GetShipVelocities().LinearVelocity;
             if (shipVelocity.LengthSquared() > 0)
                 shipVelocity = Vector3D.Normalize(shipVelocity);
 
-            if (impulseEnginesActive)
-                ApplyThrust(shipVelocity, pilotInputWorld, mainControl.GetShipSpeed());
+            if (enginesActive)
+                ApplyThrust(shipVelocity, inputWorld, mainControl.GetShipSpeed());
         }
 
         void RefreshBlocks()
@@ -84,59 +84,51 @@ namespace IngameScript
                 }
             }
 
-            GridTerminalSystem.GetBlockGroups(impulseEnginesRaw, impulseEngine => impulseEngine.Name.Contains(impulseEngineTag));
-            foreach (IMyBlockGroup impulseEngineRaw in impulseEnginesRaw)
-                impulseEngines.Add(new ImpulseEngine(impulseEngineRaw));
+            GridTerminalSystem.GetBlockGroups(enginesRaw, engine => engine.Name.Contains(engineTag));
+            foreach (IMyBlockGroup engineRaw in enginesRaw)
+                engines.Add(new Engine(engineRaw));
         }
 
-        void ApplyThrust(Vector3D shipVelocity, Vector3D pilotInputWorld, double shipSpeed)
+        void ApplyThrust(Vector3D shipVelocity, Vector3D inputWorld, double shipSpeed)
         {
-            foreach (ImpulseEngine impulseEngine in impulseEngines)
+            foreach (Engine engine in engines)
             {
                 try
                 {
-                    foreach (IMyMotorAdvancedStator impulseDriver in impulseEngine.ImpulseDrivers)
+                    foreach (IMyMotorAdvancedStator driver in engine.Drivers)
                     {
                         //Which direction is this driver pointing relative to the world?
-                        Vector3D impulseEngineActingVector = impulseDriver.WorldMatrix.Up;
-                        double impulseEngineDotPilotInput = impulseEngineActingVector.Dot(pilotInputWorld);
-                        double impulseEngineDotShipVelocityScaled = impulseEngineActingVector.Dot(shipVelocity) * shipSpeed;
+                        Vector3D eVector = driver.WorldMatrix.Up;
+                        double eDotInput = eVector.Dot(inputWorld);
+                        double eDotShipVelocityScaled = eVector.Dot(shipVelocity) * shipSpeed;
                         float rotorDisplacement;
 
                         //Is this driver going to help accelerate in the intended direction?
-                        if (impulseEngineDotPilotInput > 0.05)
-                            impulseEngine.ExecuteDriver(impulseDriver, -maxDisplacement);
+                        if (eDotInput > 0.05)
+                            engine.ExecuteDriver(driver, -maxDisplacement);
 
-                        else if (-impulseEngineDotPilotInput > 0.05)
-                            impulseEngine.ExecuteDriver(impulseDriver, maxDisplacement);
+                        else if (-eDotInput > 0.05)
+                            engine.ExecuteDriver(driver, maxDisplacement);
 
                         else
                         {
                             //Is this driver going to help dampers stop?
-                            if (-impulseEngineDotPilotInput == 0 && -impulseEngineDotShipVelocityScaled > 0.01)
+                            if (-eDotInput == 0 && -eDotShipVelocityScaled > 0.01)
                             {
-                                if (-impulseEngineDotShipVelocityScaled < 15)
-                                    rotorDisplacement = (float)(-maxDisplacement * (-impulseEngineDotShipVelocityScaled / 15));
-                                else
-                                    rotorDisplacement = -maxDisplacement;
-
-                                impulseEngine.ExecuteDriver(impulseDriver, rotorDisplacement);
+                                rotorDisplacement = -eDotShipVelocityScaled < 15 ? (float)(-maxDisplacement * (-eDotShipVelocityScaled / 15)) : -maxDisplacement;
+                                engine.ExecuteDriver(driver, rotorDisplacement);
                             }
-                            else if (impulseEngineDotPilotInput == 0 && impulseEngineDotShipVelocityScaled > 0.01)
+                            else if (eDotInput == 0 && eDotShipVelocityScaled > 0.01)
                             {
-                                if (impulseEngineDotShipVelocityScaled < 15)
-                                    rotorDisplacement = (float)(maxDisplacement * impulseEngineDotShipVelocityScaled / 15);
-                                else
-                                    rotorDisplacement = maxDisplacement;
-
-                                impulseEngine.ExecuteDriver(impulseDriver, rotorDisplacement);
+                                rotorDisplacement = eDotShipVelocityScaled < 15 ? (float)(maxDisplacement * eDotShipVelocityScaled / 15) : maxDisplacement;
+                                engine.ExecuteDriver(driver, rotorDisplacement);
                             }
                             else
-                                impulseEngine.ResetDriver(impulseDriver);
+                                engine.ResetDriver(driver);
                         }
-                        impulseDriver.Attach();
+                        driver.Attach();
                     }
-                    impulseEngine.ExecuteCargoShift();
+                    engine.ExecuteCargoShift();
                 }
                 catch
                 {
@@ -156,29 +148,29 @@ namespace IngameScript
             }
         }
 
-        class ImpulseEngine
+        class Engine
         {
-            public IMyBlockGroup ImpulseEngineRaw { get; set; }
-            public List<IMyMotorAdvancedStator> ImpulseDrivers { get; set; } = new List<IMyMotorAdvancedStator>();
+            public IMyBlockGroup EngineRaw { get; set; }
+            public List<IMyMotorAdvancedStator> Drivers { get; set; } = new List<IMyMotorAdvancedStator>();
             public List<IMyCargoContainer> ContainerTempList { get; set; } = new List<IMyCargoContainer>();
             public List<IMyInventory> ContainerEnds { get; set; } = new List<IMyInventory>();
             public List<IMyInventory> ContainerBases { get; set; } = new List<IMyInventory>();
 
-            public ImpulseEngine(IMyBlockGroup impulseEngine)
+            public Engine(IMyBlockGroup engine)
             {
-                ImpulseEngineRaw = impulseEngine;
+                EngineRaw = engine;
                 PopulateEngine();
             }
 
             public void PopulateEngine()
             {
-                ImpulseEngineRaw.GetBlocksOfType(ImpulseDrivers);
+                EngineRaw.GetBlocksOfType(Drivers);
 
-                ImpulseEngineRaw.GetBlocksOfType(ContainerTempList, ImpulseContainer => ImpulseContainer.CustomName.Contains("End"));
+                EngineRaw.GetBlocksOfType(ContainerTempList, container => container.CustomName.Contains("End"));
                 foreach (IMyCargoContainer ContainerTempEnd in ContainerTempList)
                     ContainerEnds.Add(ContainerTempEnd.GetInventory());
 
-                ImpulseEngineRaw.GetBlocksOfType(ContainerTempList, ImpulseContainer => ImpulseContainer.CustomName.Contains("Base"));
+                EngineRaw.GetBlocksOfType(ContainerTempList, container => container.CustomName.Contains("Base"));
                 foreach (IMyCargoContainer ContainerTempBase in ContainerTempList)
                     ContainerBases.Add(ContainerTempBase.GetInventory());
             }
@@ -196,14 +188,14 @@ namespace IngameScript
                             ContainerEnd.TransferItemFrom(ContainerBase, 0, 0, true, ballastMass / (ContainerBases.Count * ContainerEnds.Count));
             }
 
-            public void ExecuteDriver(IMyMotorAdvancedStator impulseDriver, float RotorDisplacement)
+            public void ExecuteDriver(IMyMotorAdvancedStator driver, float RotorDisplacement)
             {
-                impulseDriver.SetValue<float>("Displacement", restDisplacement + RotorDisplacement);
+                driver.SetValue<float>("Displacement", restDisplacement + RotorDisplacement);
             }
 
-            public void ResetDriver(IMyMotorAdvancedStator impulseDriver)
+            public void ResetDriver(IMyMotorAdvancedStator driver)
             {
-                impulseDriver.SetValue<float>("Displacement", restDisplacement);
+                driver.SetValue<float>("Displacement", restDisplacement);
             }
         }
     }
