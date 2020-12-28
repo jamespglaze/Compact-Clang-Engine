@@ -23,7 +23,7 @@ namespace IngameScript
         static readonly float restDisplacement = -0.2f;
 
         static float maxDisplacement = -0.2f;
-        static int step = 0;
+        static bool step = true;
         static bool doRunRefresh = true;
         bool enginesActive = true;
 
@@ -54,20 +54,17 @@ namespace IngameScript
                 RefreshBlocks();
                 doRunRefresh = false;
             }
-
-            //Control input vector relative to grid
+            //Input vector relative to grid
             Vector3D inputLocal = mainControl.MoveIndicator;
-            //Normalized control input vector relative to world
+            //Normalized input vector relative to world
             Vector3D inputWorld = mainControl.WorldMatrix.Backward * inputLocal.Z + mainControl.WorldMatrix.Right * inputLocal.X + mainControl.WorldMatrix.Up * inputLocal.Y;
             if (inputWorld.LengthSquared() > 0)
                 inputWorld = Vector3D.Normalize(inputWorld);
-            //Ships normalized velocity vector relative to world
+            //Ships velocity vector relative to world
             Vector3D shipVelocity = mainControl.GetShipVelocities().LinearVelocity;
-            if (shipVelocity.LengthSquared() > 0)
-                shipVelocity = Vector3D.Normalize(shipVelocity);
 
             if (enginesActive)
-                ApplyThrust(shipVelocity, inputWorld, mainControl.GetShipSpeed());
+                ApplyThrust(shipVelocity, inputWorld, mainControl.GetShipSpeed(), mainControl.CalculateShipMass().PhysicalMass);
         }
 
         void RefreshBlocks()
@@ -89,18 +86,19 @@ namespace IngameScript
                 engines.Add(new Engine(engineRaw));
         }
 
-        void ApplyThrust(Vector3D shipVelocity, Vector3D inputWorld, double shipSpeed)
+        void ApplyThrust(Vector3D shipVelocity, Vector3D inputWorld, double shipSpeed, float mass)
         {
             foreach (Engine engine in engines)
             {
                 try
                 {
+                    float scalePower = (engine.Drivers.Count * 1000000/ mass);
                     foreach (IMyMotorAdvancedStator driver in engine.Drivers)
                     {
                         //Which direction is this driver pointing relative to the world?
                         Vector3D eVector = driver.WorldMatrix.Up;
                         double eDotInput = eVector.Dot(inputWorld);
-                        double eDotShipVelocityScaled = eVector.Dot(shipVelocity) * shipSpeed;
+                        double eDotShipVelocity = eVector.Dot(shipVelocity);
                         float rotorDisplacement;
 
                         //Is this driver going to help accelerate in the intended direction?
@@ -113,14 +111,14 @@ namespace IngameScript
                         else
                         {
                             //Is this driver going to help dampers stop?
-                            if (-eDotInput == 0 && -eDotShipVelocityScaled > 0.01)
+                            if (eDotInput == 0 && -eDotShipVelocity > 0.01)
                             {
-                                rotorDisplacement = -eDotShipVelocityScaled < 15 ? (float)(-maxDisplacement * (-eDotShipVelocityScaled / 15)) : -maxDisplacement;
+                                rotorDisplacement = -eDotShipVelocity < scalePower ? (float)(-maxDisplacement * (-eDotShipVelocity / scalePower)) : -maxDisplacement;
                                 engine.ExecuteDriver(driver, rotorDisplacement);
                             }
-                            else if (eDotInput == 0 && eDotShipVelocityScaled > 0.01)
+                            else if (eDotInput == 0 && eDotShipVelocity > 0.01)
                             {
-                                rotorDisplacement = eDotShipVelocityScaled < 15 ? (float)(maxDisplacement * eDotShipVelocityScaled / 15) : maxDisplacement;
+                                rotorDisplacement = eDotShipVelocity < scalePower ? (float)(maxDisplacement * eDotShipVelocity / scalePower) : maxDisplacement;
                                 engine.ExecuteDriver(driver, rotorDisplacement);
                             }
                             else
@@ -136,16 +134,8 @@ namespace IngameScript
                     Me.CustomData = ("Encountered Error at " + DateTime.Now);
                 }
             }
-            if (step == 0)
-            {
-                step = 1;
-                maxDisplacement = 0.2f;
-            }
-            else
-            {
-                step = 0;
-                maxDisplacement = -0.2f;
-            }
+            step = !step;
+            maxDisplacement = -maxDisplacement;
         }
 
         class Engine
@@ -174,11 +164,11 @@ namespace IngameScript
                 foreach (IMyCargoContainer ContainerTempBase in ContainerTempList)
                     ContainerBases.Add(ContainerTempBase.GetInventory());
             }
-            
+
             public void ExecuteCargoShift()
             {
                 int ballastMass = 123030;
-                if (step == 0)
+                if (step)
                     foreach (IMyInventory ContainerBase in ContainerBases)
                         foreach (IMyInventory ContainerEnd in ContainerEnds)
                             ContainerBase.TransferItemFrom(ContainerEnd, 0, 0, true, ballastMass / (ContainerBases.Count * ContainerEnds.Count));
